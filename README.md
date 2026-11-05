@@ -1,7 +1,5 @@
 # CashCraft: Gateway и Ledger
 
-Учебный проект по курсу «Язык Go».
-
 - [`gateway/`](gateway/README.md) — HTTP API на порту `:8080`. Импортирует `ledger` как Go-модуль
   (`replace` в `gateway/go.mod`).
 - [`ledger/`](ledger/README.md) — бизнес-логика, хранение в PostgreSQL, кеш отчётов в Redis.
