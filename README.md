@@ -1,66 +1,49 @@
-# Ledger — бюджеты и обработка ошибок
+# CashCraft: Gateway и Ledger
 
-Домашнее задание по курсу «Язык Go», тема 3: ввод-вывод (I/O) и обработка ошибок.
+Учебный проект по курсу «Язык Go».
 
-## Что реализовано
-
-- `Budget` — бюджет категории: `Category`, `Limit`, `Period` (необязательное поле).
-- Хранилище бюджетов в `Ledger`: `map[string]Budget`, ключ — категория.
-- `SetBudget(b Budget)` — добавляет бюджет или обновляет лимит существующего.
-- `AddTransaction(tx Transaction) error` — если на категорию задан бюджет, проверяет, что
-  уже потраченное плюс новая сумма не превышает `Limit`. Если превышает, возвращает ошибку
-  `ErrBudgetExceeded` (`budget exceeded`) и транзакцию **не сохраняет**.
-  Транзакции с суммой ≤ 0 или пустой категорией отклоняются с `ErrInvalidTransaction`.
-- `LoadBudgets(r io.Reader) error` — читает JSON-массив бюджетов и применяет их через `SetBudget`.
-  При ошибке чтения, парсинга или валидации возвращает понятную ошибку и ничего не применяет.
-- В `main` бюджеты загружаются из `budgets.json` через `os.Open` + `bufio.NewReader`.
-
-## Структура
-
-| Файл | Содержимое |
-|------|------------|
-| `ledger.go` | `Transaction`, `Budget`, `Ledger` и его методы |
-| `main.go` | демонстрационные сценарии |
-| `budgets.json` | пример бюджетов для загрузки |
-| `ledger_test.go` | юнит-тесты |
+- `gateway/` — HTTP API на порту `:8080`. Импортирует `ledger` как Go-модуль (`replace` в `gateway/go.mod`).
+- `ledger/` — бизнес-логика: транзакции, бюджеты, проверка лимитов.
 
 ## Запуск
 
 Нужен Go 1.22 или новее.
 
 ```bash
-git clone <ссылка-на-репозиторий>
-cd ledger
-go run .      # демонстрация (запускать из корня проекта, рядом с budgets.json)
-go test -v ./...  # тесты
+cd gateway
+go run .
 ```
 
-## Что показывает `go run .`
+Тесты запускаются в каждом модуле отдельно: `cd ledger && go test ./...`, `cd gateway && go test ./...`.
 
-1. Начальные бюджеты задаются через `SetBudget` («еда» — 5000, «транспорт» — 2000).
-2. Транзакции в пределах лимита добавляются (`OK`), сверх лимита отклоняются (`ОТКАЗ … budget exceeded`).
-   Затем выводится список сохранённых транзакций: в нём нет отклонённых.
-3. Лимит «транспорта» повышается через `SetBudget`, и ранее отклонённая транзакция проходит.
-4. Бюджеты загружаются из `budgets.json`, и по новой категории «одежда» проверяется лимит.
-5. Ошибки загрузки: несуществующий файл, битый JSON, объект вместо массива, пустая категория,
-   отрицательный лимит.
+## Эндпоинты
 
-Фрагмент вывода:
+| Метод и путь | Описание | Ответ |
+|---|---|---|
+| `POST /api/transactions` | добавить транзакцию | `201`, `400` (валидация), `409` (превышен бюджет) |
+| `GET /api/transactions` | список транзакций, сначала новые | `200` |
+| `POST /api/budgets` | создать или обновить бюджет категории | `201`, `400` |
+| `GET /api/budgets` | список бюджетов | `200` |
 
-```
-  OK     еда           3000.00  (продукты)
-  OK     еда           1500.00  (ресторан)
-  ОТКАЗ  еда           1000.00  (доставка): budget exceeded: category "еда", spent 4500.00 + new 1000.00 > limit 5000.00
-...
-  несуществующий файл: open budgets file: open no_such_file.json: no such file or directory
-  битый JSON: load budgets: decode JSON: unexpected EOF
-```
+Все ответы идут с `Content-Type: application/json; charset=utf-8`. Ошибки имеют формат
+`{"error":"описание"}`, внутренние ошибки возвращают `500`.
 
-## Формат `budgets.json`
+## Примеры cURL
 
-```json
-[
-  {"category": "еда", "limit": 6000, "period": "2026-10"},
-  {"category": "одежда", "limit": 3000}
-]
+```bash
+curl -X POST http://localhost:8080/api/budgets \
+  -H "Content-Type: application/json" \
+  -d '{"category":"еда","limit":5000}'
+
+curl -X POST http://localhost:8080/api/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"amount":450,"category":"еда","description":"ланч","date":"2025-09-10"}'
+
+# Превышение бюджета: ответ 409 {"error":"budget exceeded"}
+curl -i -X POST http://localhost:8080/api/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"amount":10000,"category":"еда","description":"банкет","date":"2025-09-11"}'
+
+curl http://localhost:8080/api/transactions
+curl http://localhost:8080/api/budgets
 ```

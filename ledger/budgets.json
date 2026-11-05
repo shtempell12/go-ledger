@@ -1,0 +1,5 @@
+[
+  {"category": "еда", "limit": 6000},
+  {"category": "одежда", "limit": 3000},
+  {"category": "связь", "limit": 800}
+]
