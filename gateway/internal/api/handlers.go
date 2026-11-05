@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/shtempell12/go-ledger/ledger"
 )
@@ -78,6 +79,30 @@ func listBudgets(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, newBudgetResponse(b))
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func reportSummary(w http.ResponseWriter, r *http.Request) {
+	from, err := time.Parse(dateLayout, r.URL.Query().Get("from"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "from must be in YYYY-MM-DD format")
+		return
+	}
+	to, err := time.Parse(dateLayout, r.URL.Query().Get("to"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "to must be in YYYY-MM-DD format")
+		return
+	}
+	if to.Before(from) {
+		writeError(w, http.StatusBadRequest, "from must not be after to")
+		return
+	}
+
+	report, err := ledger.GetReportSummary(r.Context(), from, to)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, newReportSummaryResponse(report))
 }
 
 // decodeJSON читает тело запроса в dst. При ошибке сам отвечает 400 и возвращает false.

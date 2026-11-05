@@ -17,6 +17,9 @@ func NewRouter() http.Handler {
 		http.MethodGet:  listBudgets,
 		http.MethodPost: createBudget,
 	}))
+	mux.HandleFunc("/api/reports/summary", byMethod(map[string]http.HandlerFunc{
+		http.MethodGet: reportSummary,
+	}))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not found")
 	})

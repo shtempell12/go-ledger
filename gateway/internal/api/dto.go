@@ -72,3 +72,25 @@ func newTransactionResponse(tx ledger.Transaction) TransactionResponse {
 func newBudgetResponse(b ledger.Budget) BudgetResponse {
 	return BudgetResponse{Category: b.Category, Limit: b.Limit}
 }
+
+// CategoryTotalResponse — сумма расходов по категории в отчёте.
+type CategoryTotalResponse struct {
+	Category string  `json:"category"`
+	Total    float64 `json:"total"`
+}
+
+// ReportSummaryResponse — ответ GET /api/reports/summary.
+type ReportSummaryResponse struct {
+	From       string                  `json:"from"`
+	To         string                  `json:"to"`
+	Categories []CategoryTotalResponse `json:"categories"`
+	Total      float64                 `json:"total"`
+}
+
+func newReportSummaryResponse(report ledger.ReportSummary) ReportSummaryResponse {
+	categories := make([]CategoryTotalResponse, 0, len(report.Categories))
+	for _, c := range report.Categories {
+		categories = append(categories, CategoryTotalResponse{Category: c.Category, Total: c.Total})
+	}
+	return ReportSummaryResponse{From: report.From, To: report.To, Categories: categories, Total: report.Total}
+}

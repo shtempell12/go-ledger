@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -175,5 +176,83 @@ func TestLoadBudgetsErrors(t *testing.T) {
 				t.Fatalf("no budgets must be applied on error: %+v", got)
 			}
 		})
+	}
+}
+
+func TestValidateWithoutDatabase(t *testing.T) {
+	if err := (Transaction{Amount: 0.01, Category: "еда"}).Validate(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := (Transaction{Amount: 0, Category: "еда"}).Validate(); !errors.Is(err, ErrInvalidTransaction) {
+		t.Fatalf("want ErrInvalidTransaction, got %v", err)
+	}
+	if err := (Budget{Category: "еда", Limit: -1}).Validate(); !errors.Is(err, ErrInvalidBudget) {
+		t.Fatalf("want ErrInvalidBudget, got %v", err)
+	}
+}
+
+func TestGetReportSummaryUsesCache(t *testing.T) {
+	reset(t)
+	if store == nil {
+		t.Skip("Redis is unavailable")
+	}
+	ctx := context.Background()
+	day := func(d int) time.Time { return time.Date(2026, 10, d, 0, 0, 0, 0, time.UTC) }
+	from, to := day(1), day(31)
+	clearReportCache(t, from, to)
+
+	for _, tx := range []Transaction{
+		{Amount: 100.10, Category: "еда", Date: day(1)},
+		{Amount: 50.20, Category: "еда", Date: day(31)},
+		{Amount: 30, Category: "связь", Date: day(15)},
+		{Amount: 999, Category: "еда", Date: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)},
+	} {
+		if _, err := AddTransaction(tx); err != nil {
+			t.Fatalf("AddTransaction: %v", err)
+		}
+	}
+
+	report, err := GetReportSummary(ctx, from, to)
+	if err != nil {
+		t.Fatalf("GetReportSummary: %v", err)
+	}
+	if report.Total != 180.30 || len(report.Categories) != 2 || report.Categories[0].Total != 150.30 {
+		t.Fatalf("wrong report: %+v", report)
+	}
+
+	if _, err := AddTransaction(Transaction{Amount: 1, Category: "еда", Date: day(2)}); err != nil {
+		t.Fatalf("AddTransaction: %v", err)
+	}
+	cached, err := GetReportSummary(ctx, from, to)
+	if err != nil {
+		t.Fatalf("GetReportSummary: %v", err)
+	}
+	if cached.Total != 180.30 {
+		t.Fatalf("second call must come from cache: %+v", cached)
+	}
+
+	clearReportCache(t, from, to)
+	fresh, err := GetReportSummary(ctx, from, to)
+	if err != nil {
+		t.Fatalf("GetReportSummary: %v", err)
+	}
+	if fresh.Total != 181.30 {
+		t.Fatalf("report must be recalculated after a cache miss: %+v", fresh)
+	}
+}
+
+func TestListBudgetsCacheInvalidatedBySetBudget(t *testing.T) {
+	reset(t)
+	mustSetBudget(t, Budget{Category: "еда", Limit: 100})
+	if _, err := ListBudgets(); err != nil {
+		t.Fatalf("ListBudgets: %v", err)
+	}
+	mustSetBudget(t, Budget{Category: "еда", Limit: 200})
+	got, err := ListBudgets()
+	if err != nil {
+		t.Fatalf("ListBudgets: %v", err)
+	}
+	if len(got) != 1 || got[0].Limit != 200 {
+		t.Fatalf("stale budgets: %+v", got)
 	}
 }

@@ -38,6 +38,20 @@ type Budget struct {
 	Limit    float64 `json:"limit"`
 }
 
+// CategoryTotal — сумма расходов по одной категории.
+type CategoryTotal struct {
+	Category string  `json:"category"`
+	Total    float64 `json:"total"`
+}
+
+// ReportSummary — отчёт о расходах за период; даты в формате YYYY-MM-DD.
+type ReportSummary struct {
+	From       string          `json:"from"`
+	To         string          `json:"to"`
+	Categories []CategoryTotal `json:"categories"`
+	Total      float64         `json:"total"`
+}
+
 // Validate проверяет поля транзакции. Пустая дата допустима: AddTransaction подставит текущую.
 func (t Transaction) Validate() error {
 	if c := cents(t.Amount); c <= 0 || c >= maxCents {

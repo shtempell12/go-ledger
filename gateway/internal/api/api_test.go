@@ -19,6 +19,8 @@ func TestErrorResponses(t *testing.T) {
 		{"empty category", http.MethodPost, "/api/transactions", `{"amount":1,"category":""}`, http.StatusBadRequest},
 		{"bad date", http.MethodPost, "/api/transactions", `{"amount":1,"category":"еда","date":"10.09.2025"}`, http.StatusBadRequest},
 		{"zero limit", http.MethodPost, "/api/budgets", `{"category":"еда","limit":0}`, http.StatusBadRequest},
+		{"report without dates", http.MethodGet, "/api/reports/summary", "", http.StatusBadRequest},
+		{"report bad range", http.MethodGet, "/api/reports/summary?from=2026-02-01&to=2026-01-01", "", http.StatusBadRequest},
 		{"wrong method", http.MethodDelete, "/api/budgets", "", http.StatusMethodNotAllowed},
 		{"unknown path", http.MethodGet, "/api/unknown", "", http.StatusNotFound},
 	}
